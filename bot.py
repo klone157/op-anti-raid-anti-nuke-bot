@@ -262,7 +262,7 @@ def is_whitelisted(guild_id: int, user_id: int) -> bool:
     gdata = get_guild_data(guild_id)
     return user_id in gdata["whitelist"]
 
-# DÜZƏLİŞ: duration_hours parametri əlavə edildi ki, 1 saatlıq səssizlik dəqiq işləsin
+
 async def punish_user(guild: discord.Guild, member: discord.Member, reason: str, duration_days: int = 25, duration_hours: int = 0, remove_roles: bool = True):
     if member.id == DEVELOPER_ID or member.id == guild.owner_id or is_whitelisted(guild.id, member.id):
         return
@@ -275,14 +275,20 @@ async def punish_user(guild: discord.Guild, member: discord.Member, reason: str,
                 await member.remove_roles(*roles_to_remove, reason=f"Anti-Nuke: {reason}")
                 roles_removed = True
         except Exception as e:
-            print(f"Rollar alınarkən xəta: {e}")
+            print(f"❌ Rol silərkən xəta baş verdi: {e} (Görünür botun rolu bu istifadəçidən aşağıdadır)")
 
     try:
-        # Düzəliş: Gün və saat dəyərlərini birləşdirərək tam vaxt hesablayır
+        # Zaman aralığını dəqiq hesablayırıq
         duration = datetime.timedelta(days=duration_days, hours=duration_hours)
+        
+        # Əgər həm gün, həm saat 0-dırsa, ehtiyat olaraq 1 saatlıq mute atırıq
+        if duration.total_seconds() == 0:
+            duration = datetime.timedelta(hours=1)
+            
         await member.timeout(duration, reason=f"Anti-Nuke: {reason}")
+        print(f"✅ {member.name} uğurla {duration} müddətinə səssizliyə atıldı.")
     except Exception as e:
-        print(f"Timeout xətası: {e}")
+        print(f"❌ Səssizliyə (timeout) atarkən xəta: {e}. Botun 'Moderate Members' icazəsi varmı?")
 
     embed = discord.Embed(
         title="🚨 CƏZA TƏTBİQ EDİLDİ",
@@ -405,7 +411,7 @@ async def open_panel(interaction: discord.Interaction):
         f"👢 **Kick Limiti:** {gdata.get('limit_kick', 3)}/dəq\n"
         f"🏷️ **Rol Silmə:** {gdata.get('limit_role_delete', 3)}/dəq\n"
         f"📁 **Kanal Silmə:** {gdata.get('limit_channel_delete', 3)}/dəq\n"
-        f"📢 ****@everyone:** {gdata.get('limit_everyone', 2)}/dəq"
+        f"📢 **@everyone:** {gdata.get('limit_everyone', 2)}/dəq"
     )
     embed.add_field(name="📊 Cari Limitlər", value=limit_info, inline=False)
     
@@ -476,7 +482,7 @@ async def on_message(message: discord.Message):
             await send_log(message.guild, embed=embed, ping_staff=False, ping_user=message.author)
 
     # B) Mass Mention Ping Qoruması
-mentions = message.mentions
+    mentions = message.mentions
     if message.reference and message.reference.cached_message:
         replied_to_user = message.reference.cached_message.author
         mentions = [m for m in mentions if m.id != replied_to_user.id]
@@ -681,7 +687,7 @@ async def on_member_join(member: discord.Member):
     if len(bot.join_tracker[guild_id]) > 10:
         embed = discord.Embed(
             title="🚨 TƏCİLİ: RAID SİQNALI!",
-            description="Serverə son 10 saniyədə 10-dan çox yeni hesab daxil oldu. Raid hücumu baş vermiş ola mir!",
+            description="Serverə son 10 saniyədə 10-dan çox yeni hesab daxil oldu. Raid hücumu baş vermiş ola bilər!",
             color=discord.Color.red()
         )
         embed.set_footer(text="Qoruyucu heyət dərhal serveri yoxlamalıdır.")
