@@ -624,7 +624,13 @@ async def on_member_join(member: discord.Member):
 # --- BOTU VƏ VEB SERVERİ BAŞLATMAQ ---
 keep_alive()
 
-TOKEN = "BOTA_AİD_TOKENİ_BURA_YAZIN"
+# Render-də təyin etdiyin "TOKEN" adlı mühit dəyişənini oxuyur
+TOKEN = os.environ.get("TOKEN")
+
+if not TOKEN:
+    # Əgər mühit dəyişəni tapılmasa, birbaşa bura yazılan tokeni yoxlayır
+    TOKEN = "BOTA_AİD_TOKENİ_BURA_YAZIN"
+
 bot.run(TOKEN)
 
 
