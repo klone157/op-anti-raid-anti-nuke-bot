@@ -4,6 +4,9 @@ from discord.ext import commands
 import datetime
 import os
 import pymongo  # MongoDB üçün lazımdır
+import certifi  # SSL/TLS sertifikat xətalarını düzəltmək üçün mütləqdir
+from pymongo import MongoClient
+from pymongo.server_api import ServerApi
 from flask import Flask
 from threading import Thread
 
@@ -24,21 +27,44 @@ def run():
 def keep_alive(): 
     Thread(target=run).start()
 
-# --- MONGODB BAĞLANTISI ---
-MONGO_URI = os.environ.get("MONGO_URI", "SƏNİN_MONGODB_KOPYALADIĞIN_LINK_BURA")
+# --- MONGODB BAĞLANTISI (ENVİRONS VASİTƏSİLƏ) ---
+# Həm MONGO_URI, həm də ehtiyat olaraq MONGO_URL dəyişənini yoxlayır
+MONGO_URI = os.environ.get("MONGO_URI") or os.environ.get("MONGO_URL")
 
-try:
-    mongo_client = pymongo.MongoClient(MONGO_URI)
-    db = mongo_client["anti_nuke_database"]
-    collection = db["guild_settings"]
-    print("✅ MongoDB Verilənlər Bazasına uğurla qoşulduq!")
-except Exception as e:
-    print(f"❌ Verilənlər bazasına qoşularkən xəta: {e}")
+if not MONGO_URI:
+    print("❌ XƏTA: Render panelində MONGO_URI ətraf mühit dəyişəni (Environment Variable) tapılmadı!")
+    collection = None
+else:
+    try:
+        # MongoDB-nin tövsiyə etdiyi ServerApi və certifi ilə təhlükəsiz qoşulma qururuq
+        mongo_client = MongoClient(
+            MONGO_URI,
+            server_api=ServerApi('1'),
+            tlsCAFile=certifi.where(),
+            tlsAllowInvalidCertificates=True  # SSL sertifikat xətalarını tamamilə keçmək üçün
+        )
+        db = mongo_client["anti_nuke_database"]
+        collection = db["guild_settings"]
+        
+        # Qoşulmanı test etmək üçün ping göndəririk
+        mongo_client.admin.command('ping')
+        print("✅ Pinged your deployment. MongoDB-yə uğurla qoşulduq!")
+    except Exception as e:
+        print(f"❌ Verilənlər bazasına qoşularkən xəta baş verdi: {e}")
+        collection = None
 
 # --- MULTI-SERVER MONGODB FUNKSİYALARI ---
 
 def get_guild_data(guild_id: int):
     guild_key = str(guild_id)
+    if collection is None:
+        print("⚠️ Database aktiv deyil! Default parametrlər qaytarılır.")
+        return {
+            "guild_id": guild_key, "whitelist": [], "notification_roles": [], 
+            "log_channel_id": None, "is_active": False, "limit_ban": 3, 
+            "limit_kick": 3, "limit_role_delete": 3, "limit_channel_delete": 3, "limit_everyone": 2
+        }
+        
     data = collection.find_one({"guild_id": guild_key})
     
     if not data:
@@ -75,6 +101,9 @@ def get_guild_data(guild_id: int):
     return data
 
 def update_guild_data(guild_id: int, key: str, value):
+    if collection is None:
+        print("⚠️ Database aktiv olmadığı üçün məlumat yadda saxlanıla bilmədi!")
+        return
     guild_key = str(guild_id)
     collection.update_one(
         {"guild_id": guild_key},
@@ -244,14 +273,12 @@ class AntiNukeBot(commands.Bot):
         self.join_tracker = {}         
 
     async def setup_hook(self):
-        # Düymələrin bot yenidən başlayanda işləməsi üçün:
         self.add_view(ControlPanelView())
         print("✅ Düyməli İdarəetmə Paneli (Persistent View) aktivdir!")
         
         self.tree.add_command(whitelist_group)
         self.tree.add_command(staff_group)
         
-        # Komandaları sinxronizasiya edirik
         await self.tree.sync()
         print("✅ Bütün komandalar uğurla sinxronizasiya edildi!")
 
@@ -396,10 +423,8 @@ async def staff_remove(interaction: discord.Interaction, role: discord.Role):
 @app_commands.guild_only()
 @app_commands.checks.has_permissions(administrator=True)
 async def open_panel(interaction: discord.Interaction):
-    # 1. DƏRHAL defer edərək 3 saniyə limitini keçirik
     await interaction.response.defer(ephemeral=True)
     
-    # 2. MongoDB ilə əlaqə qururuq
     guild_id = interaction.guild_id
     gdata = get_guild_data(guild_id)
     
@@ -420,7 +445,6 @@ async def open_panel(interaction: discord.Interaction):
     )
     embed.add_field(name="📊 Cari Limitlər", value=limit_info, inline=False)
     
-    # 3. Cavabı followup ilə göndəririk
     await interaction.followup.send(embed=embed, view=ControlPanelView())
 
 
@@ -428,7 +452,6 @@ async def open_panel(interaction: discord.Interaction):
 @app_commands.guild_only()
 @app_commands.checks.has_permissions(administrator=True)
 async def set_log(interaction: discord.Interaction, channel: discord.TextChannel):
-    # 1. Defer edirik
     await interaction.response.defer(ephemeral=True)
     
     guild_id = interaction.guild_id
@@ -439,7 +462,6 @@ async def set_log(interaction: discord.Interaction, channel: discord.TextChannel
         description=f"Loglar artıq {channel.mention} kanalına göndəriləcək.",
         color=discord.Color.green()
     )
-    # 2. Cavabı followup ilə göndəririk
     await interaction.followup.send(embed=embed)
 
 
@@ -696,7 +718,7 @@ async def on_member_join(member: discord.Member):
     if len(bot.join_tracker[guild_id]) > 10:
         embed = discord.Embed(
             title="🚨 TƏCİLİ: RAID SİQNALI!",
-            description="Serverə son 10 saniyədə 10-dan çox yeni hesab daxil oldu. Raid hücumu baş vermiş ola bilər!",
+            description="Serverə son 10 saniyədə 10-dan çox yeni hesab daxil oldu. Raid hücumu baş vermiş ola birər!",
             color=discord.Color.red()
         )
         embed.set_footer(text="Qoruyucu heyət dərhal serveri yoxlamalıdır.")
