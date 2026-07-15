@@ -89,93 +89,6 @@ intents.moderation = True
 intents.message_content = True
 intents.guilds = True
 
-# --- INTERAKTİV UI DÜYMƏLƏRİ (PANEL VIEW) ---
-# View sinfini aşağıda istifadə edə bilmək üçün bot sinfindən əvvəl təyin edirik
-class ControlPanelView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None) # Timeout=None düymələrin heç vaxt sönməməsini təmin edir
-
-    @discord.ui.button(label="Sistemi Aktiv Et", style=discord.ButtonStyle.success, emoji="🛡️", custom_id="btn_activate")
-    async def activate_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != DEVELOPER_ID and not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ Bu düyməni yalnız İdarəçilər istifadə edə bilər!", ephemeral=True)
-            return
-        
-        guild_id = interaction.guild_id
-        update_guild_data(guild_id, "is_active", True)
-        
-        embed = discord.Embed(
-            title="🛡️ Anti-Nuke Statusu",
-            description="Sistem bu server üçün uğurla **AKTİVLƏŞDİRİLDİ**.\nServer artıq tam qoruma altındadır!",
-            color=discord.Color.green()
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @discord.ui.button(label="Sistemi Deaktiv Et", style=discord.ButtonStyle.danger, emoji="🔓", custom_id="btn_deactivate")
-    async def deactivate_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != DEVELOPER_ID and not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ Bu düyməni yalnız İdarəçilər istifadə edə bilər!", ephemeral=True)
-            return
-        
-        guild_id = interaction.guild_id
-        update_guild_data(guild_id, "is_active", False)
-        
-        embed = discord.Embed(
-            title="🔓 Anti-Nuke Statusu",
-            description="Sistem bu server üçün **DEAKTİV EDİLDİ**.\nServer hazırda qorunmur!",
-            color=discord.Color.red()
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @discord.ui.button(label="Limitləri Ayarla", style=discord.ButtonStyle.primary, emoji="⚙️", custom_id="btn_set_limits")
-    async def set_limits_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != DEVELOPER_ID and not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ Limitləri yalnız İdarəçilər dəyişə bilər!", ephemeral=True)
-            return
-        
-        gdata = get_guild_data(interaction.guild_id)
-        await interaction.response.send_modal(LimitSettingsModal(current_limits=gdata))
-
-    @discord.ui.button(label="Whitelist Göstər", style=discord.ButtonStyle.secondary, emoji="📋", custom_id="btn_whitelist")
-    async def whitelist_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        gdata = get_guild_data(interaction.guild_id)
-        users_mentions = [f"<@{uid}> (`{uid}`)" for uid in gdata["whitelist"]]
-        
-        embed = discord.Embed(
-            title="📋 Whitelist (Güvənli Siyahı)",
-            description="\n".join(users_mentions) if users_mentions else "*Bu server üçün hələ ki whitelist-ə heç kim əlavə edilməyib.*",
-            color=discord.Color.blue()
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-
-class AntiNukeBot(commands.Bot):
-    def __init__(self):
-        super().__init__(command_prefix="!", intents=intents)
-        
-        self.ban_counter = {}          
-        self.kick_counter = {}         
-        self.role_delete_counter = {}  
-        self.channel_delete_counter = {} 
-        self.everyone_counter = {}     
-        self.join_tracker = {}         
-
-    async def setup_hook(self):
-        # 1. Düymələrin bot sönüb-yananda da köhnə mesajlarda işləməsini aktivləşdiririk:
-        self.add_view(ControlPanelView())
-        print("✅ Düyməli İdarəetmə Paneli (Persistent View) uğurla qeydiyyatdan keçdi!")
-        
-        # 2. Komanda qruplarını əlavə edirik:
-        self.tree.add_command(whitelist_group)
-        self.tree.add_command(staff_group)
-        
-        # 3. Bütün komandaları Discord-a qlobal olaraq ötürürük:
-        await self.tree.sync()
-        print("✅ Bütün Slaş komandaları Discord API ilə sinxronizasiya olundu!")
-
-bot = AntiNukeBot()
-
-
 # --- POP-UP MODAL (LİMİTLƏRİ AYARLAMAQ ÜÇÜN PƏNCƏRƏ) ---
 
 class LimitSettingsModal(discord.ui.Modal, title="⚙️ Anti-Nuke Limitlərini Ayarla"):
@@ -259,6 +172,92 @@ class LimitSettingsModal(discord.ui.Modal, title="⚙️ Anti-Nuke Limitlərini 
             await interaction.response.send_message("❌ Zəhmət olmasa yalnız düzgün rəqəmlər daxil edin!", ephemeral=True)
 
 
+# --- INTERAKTİV UI DÜYMƏLƏRİ (PANEL VIEW) ---
+
+class ControlPanelView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Sistemi Aktiv Et", style=discord.ButtonStyle.success, emoji="🛡️", custom_id="btn_activate")
+    async def activate_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != DEVELOPER_ID and not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ Bu düyməni yalnız İdarəçilər istifadə edə bilər!", ephemeral=True)
+            return
+        
+        guild_id = interaction.guild_id
+        update_guild_data(guild_id, "is_active", True)
+        
+        embed = discord.Embed(
+            title="🛡️ Anti-Nuke Statusu",
+            description="Sistem bu server üçün uğurla **AKTİVLƏŞDİRİLDİ**.\nServer artıq tam qoruma altındadır!",
+            color=discord.Color.green()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="Sistemi Deaktiv Et", style=discord.ButtonStyle.danger, emoji="🔓", custom_id="btn_deactivate")
+    async def deactivate_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != DEVELOPER_ID and not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ Bu düyməni yalnız İdarəçilər istifadə edə bilər!", ephemeral=True)
+            return
+        
+        guild_id = interaction.guild_id
+        update_guild_data(guild_id, "is_active", False)
+        
+        embed = discord.Embed(
+            title="🔓 Anti-Nuke Statusu",
+            description="Sistem bu server üçün **DEAKTİV EDİLDİ**.\nServer hazırda qorunmur!",
+            color=discord.Color.red()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="Limitləri Ayarla", style=discord.ButtonStyle.primary, emoji="⚙️", custom_id="btn_set_limits")
+    async def set_limits_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != DEVELOPER_ID and not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ Limitləri yalnız İdarəçilər dəyişə bilər!", ephemeral=True)
+            return
+        
+        gdata = get_guild_data(interaction.guild_id)
+        await interaction.response.send_modal(LimitSettingsModal(current_limits=gdata))
+
+    @discord.ui.button(label="Whitelist Göstər", style=discord.ButtonStyle.secondary, emoji="📋", custom_id="btn_whitelist")
+    async def whitelist_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        gdata = get_guild_data(interaction.guild_id)
+        users_mentions = [f"<@{uid}> (`{uid}`)" for uid in gdata["whitelist"]]
+        
+        embed = discord.Embed(
+            title="📋 Whitelist (Güvənli Siyahı)",
+            description="\n".join(users_mentions) if users_mentions else "*Bu server üçün hələ ki whitelist-ə heç kim əlavə edilməyib.*",
+            color=discord.Color.blue()
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+class AntiNukeBot(commands.Bot):
+    def __init__(self):
+        super().__init__(command_prefix="!", intents=intents)
+        
+        self.ban_counter = {}          
+        self.kick_counter = {}         
+        self.role_delete_counter = {}  
+        self.channel_delete_counter = {} 
+        self.everyone_counter = {}     
+        self.join_tracker = {}         
+
+    async def setup_hook(self):
+        # Düymələrin bot yenidən başlayanda işləməsi üçün:
+        self.add_view(ControlPanelView())
+        print("✅ Düyməli İdarəetmə Paneli (Persistent View) aktivdir!")
+        
+        self.tree.add_command(whitelist_group)
+        self.tree.add_command(staff_group)
+        
+        # Komandaları sinxronizasiya edirik
+        await self.tree.sync()
+        print("✅ Bütün komandalar uğurla sinxronizasiya edildi!")
+
+bot = AntiNukeBot()
+
+
 # --- KÖMƏKÇİ FUNKSİYALAR ---
 
 def is_whitelisted(guild_id: int, user_id: int) -> bool:
@@ -280,18 +279,17 @@ async def punish_user(guild: discord.Guild, member: discord.Member, reason: str,
                 await member.remove_roles(*roles_to_remove, reason=f"Anti-Nuke: {reason}")
                 roles_removed = True
         except Exception as e:
-            print(f"❌ Rol silərkən xəta baş verdi: {e} (Görünür botun rolu bu istifadəçidən aşağıdadır)")
+            print(f"❌ Rol silərkən xəta baş verdi: {e}")
 
     try:
         duration = datetime.timedelta(days=duration_days, hours=duration_hours)
-        
         if duration.total_seconds() == 0:
             duration = datetime.timedelta(hours=1)
             
         await member.timeout(duration, reason=f"Anti-Nuke: {reason}")
         print(f"✅ {member.name} uğurla {duration} müddətinə səssizliyə atıldı.")
     except Exception as e:
-        print(f"❌ Səssizliyə (timeout) atarkən xəta: {e}. Botun 'Moderate Members' icazəsi varmı?")
+        print(f"❌ Səssizliyə atarkən xəta: {e}")
 
     embed = discord.Embed(
         title="🚨 CƏZA TƏTBİQ EDİLDİ",
@@ -398,6 +396,10 @@ async def staff_remove(interaction: discord.Interaction, role: discord.Role):
 @app_commands.guild_only()
 @app_commands.checks.has_permissions(administrator=True)
 async def open_panel(interaction: discord.Interaction):
+    # 1. DƏRHAL defer edərək 3 saniyə limitini keçirik
+    await interaction.response.defer(ephemeral=True)
+    
+    # 2. MongoDB ilə əlaqə qururuq
     guild_id = interaction.guild_id
     gdata = get_guild_data(guild_id)
     
@@ -418,12 +420,17 @@ async def open_panel(interaction: discord.Interaction):
     )
     embed.add_field(name="📊 Cari Limitlər", value=limit_info, inline=False)
     
-    await interaction.response.send_message(embed=embed, view=ControlPanelView())
+    # 3. Cavabı followup ilə göndəririk
+    await interaction.followup.send(embed=embed, view=ControlPanelView())
+
 
 @bot.tree.command(name="log", description="Log kanalını təyin edir.")
 @app_commands.guild_only()
 @app_commands.checks.has_permissions(administrator=True)
 async def set_log(interaction: discord.Interaction, channel: discord.TextChannel):
+    # 1. Defer edirik
+    await interaction.response.defer(ephemeral=True)
+    
     guild_id = interaction.guild_id
     update_guild_data(guild_id, "log_channel_id", channel.id)
     
@@ -432,7 +439,8 @@ async def set_log(interaction: discord.Interaction, channel: discord.TextChannel
         description=f"Loglar artıq {channel.mention} kanalına göndəriləcək.",
         color=discord.Color.green()
     )
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    # 2. Cavabı followup ilə göndəririk
+    await interaction.followup.send(embed=embed)
 
 
 # --- HADİSƏLƏR (EVENTS) ---
