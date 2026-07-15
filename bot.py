@@ -26,6 +26,7 @@ def keep_alive():
     Thread(target=run).start()
 
 # --- POSTGRESQL BAĞLANTISI ---
+# --- POSTGRESQL BAĞLANTISI (Aiven-ə Uyğun) ---
 def get_db_connection():
     try:
         connection = psycopg2.connect(
@@ -34,6 +35,7 @@ def get_db_connection():
             password=os.environ.get("PGPASSWORD"),
             database=os.environ.get("PGDATABASE"),
             port=int(os.environ.get("PGPORT", 5432)),
+            sslmode="require",  # Aiven SSL rejimini mütləq tələb edir
             cursor_factory=RealDictCursor  # Məlumatları dict formasında almaq üçün
         )
         return connection
